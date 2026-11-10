@@ -52,5 +52,6 @@ data class VoiceSettings(
     companion object {
         const val VOICE_HUOSHAN = "huoshan"
         const val VOICE_GOOGLE = "google"
+        const val VOICE_LOCAL = "local"
     }
 }
