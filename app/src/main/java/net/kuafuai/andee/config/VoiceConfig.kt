@@ -537,7 +537,7 @@ object VoiceConfig {
                 // without one reads as 火山, which is what every build did
                 // before this setting existed. Either way the picker is one tap
                 // away, and a user's own choice always outranks this.
-                "" -> if (googleApiKeyDefault().isNotEmpty()) VOICE_GOOGLE else VOICE_HUOSHAN
+                "" -> VOICE_LOCAL
                 else -> VOICE_HUOSHAN
             }
         }
