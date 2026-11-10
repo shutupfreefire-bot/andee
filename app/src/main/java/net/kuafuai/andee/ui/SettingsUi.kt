@@ -679,6 +679,15 @@ class SettingsUi(
 
         // ---- 本机 tab: LLM + 火山 voice rows ----
         val localBlock = block(panel)
+        rowLabel(localBlock, "AI provider")
+        segmented(
+            localBlock,
+            "llm_provider",
+            listOf(
+                "custom" to "Custom / OpenAI-compatible",
+                "nvidia" to "NVIDIA hosted",
+            ),
+        )
         // The hint *is* the value a blank row resolves to, so the hint and the
         // resolved config come from the same language-aware pair — see
         // [VoiceConfig.llmModelDefault]. An English card advertises an OpenAI
