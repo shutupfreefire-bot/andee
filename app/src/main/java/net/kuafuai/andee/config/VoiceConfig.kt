@@ -411,6 +411,8 @@ object VoiceConfig {
                     ?.trim()?.lowercase() != "disabled",
                 reasoningEffort = p.getString("llm_reasoning_effort", DEFAULT_REASONING_EFFORT)
                     .orEmpty().trim().ifEmpty { DEFAULT_REASONING_EFFORT },
+                provider = p.getString("llm_provider", BrainConfig.PROVIDER_CUSTOM).orEmpty()
+                    .trim().lowercase().ifEmpty { BrainConfig.PROVIDER_CUSTOM },
             )
         }
 
@@ -716,6 +718,7 @@ object VoiceConfig {
                 "llm_api_key" to p.getString("llm_api_key", "").orEmpty(),
                 "llm_base_url" to p.getString("llm_base_url", "").orEmpty(),
                 "llm_model" to p.getString("llm_model", "").orEmpty(),
+                "llm_provider" to p.getString("llm_provider", BrainConfig.PROVIDER_CUSTOM).orEmpty(),
                 // Round-tripped as the wire words rather than a boolean: this map
                 // feeds SettingsUi's pickers and the picker's value is what comes
                 // back to [save], which only speaks String.
@@ -1067,7 +1070,7 @@ object VoiceConfig {
             "brain",
             "show_hub",
             "llm_api_key", "llm_base_url", "llm_model",
-            "llm_thinking", "llm_reasoning_effort",
+            "llm_thinking", "llm_reasoning_effort", "llm_provider",
             "grounding",
             "notify",
             "nudge",
