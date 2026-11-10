@@ -16,6 +16,8 @@ data class BrainConfig(
     val model: String,
     val thinking: Boolean,
     val reasoningEffort: String,
+    /** Independent hosted LLM provider; voice ASR/TTS selection lives elsewhere. */
+    val provider: String = PROVIDER_CUSTOM,
 ) {
     /**
      * The agent loop runs on this device (local DeepSeek or CodeFlying
@@ -33,11 +35,13 @@ data class BrainConfig(
      * is what discards the conversation.
      */
     fun sameBackend(other: BrainConfig): Boolean =
-        mode == other.mode && apiKey == other.apiKey && baseUrl == other.baseUrl
+        mode == other.mode && apiKey == other.apiKey && baseUrl == other.baseUrl && provider == other.provider
 
     companion object {
         const val BRAIN_HUB = "hub"
         const val BRAIN_LOCAL = "local"
         const val BRAIN_CODEFLYING = "codeflying"
+        const val PROVIDER_CUSTOM = "custom"
+        const val PROVIDER_NVIDIA = "nvidia"
     }
 }

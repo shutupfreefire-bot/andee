@@ -29,6 +29,10 @@ object VoiceConfig {
          */
         const val API_KEY = ""
 
+        /** NVIDIA API Catalog hosted OpenAI-compatible chat endpoint. */
+        const val NVIDIA_LLM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+        const val NVIDIA_LLM_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+
         /**
          * The 火山 speaker the device speaks with when the ball's look has no
          * opinion of its own.
@@ -79,6 +83,8 @@ object VoiceConfig {
          * appears on the listening side.
          */
         const val VOICE_SYSTEM = "system"
+        /** Android on-device ASR; microphone audio stays on the device. */
+        const val VOICE_LOCAL = VoiceSettings.VOICE_LOCAL
 
         /**
          * The Vertex endpoint, its Express-keyed surface.
@@ -395,8 +401,11 @@ object VoiceConfig {
             // Language-dependent defaults: the blank-row fallback must be the
             // value the 本机 tab's hint advertised, or an English card would
             // promise OpenAI in the placeholder and then call DeepSeek.
-            val defaultBaseUrl = llmBaseUrlDefault(context)
-            val defaultModel = llmModelDefault(context)
+            val provider = p.getString("llm_provider", BrainConfig.PROVIDER_CUSTOM).orEmpty()
+                .trim().lowercase().ifEmpty { BrainConfig.PROVIDER_CUSTOM }
+            val isNvidia = provider == BrainConfig.PROVIDER_NVIDIA
+            val defaultBaseUrl = if (isNvidia) NVIDIA_LLM_BASE_URL else llmBaseUrlDefault(context)
+            val defaultModel = if (isNvidia) NVIDIA_LLM_MODEL else llmModelDefault(context)
             return BrainConfig(
                 mode = mode,
                 apiKey = p.getString("llm_api_key", "").orEmpty().trim(),
@@ -411,6 +420,7 @@ object VoiceConfig {
                     ?.trim()?.lowercase() != "disabled",
                 reasoningEffort = p.getString("llm_reasoning_effort", DEFAULT_REASONING_EFFORT)
                     .orEmpty().trim().ifEmpty { DEFAULT_REASONING_EFFORT },
+                provider = provider,
             )
         }
 
@@ -520,13 +530,14 @@ object VoiceConfig {
                 .getString("voice_provider", "").orEmpty().trim().lowercase()
             return when (saved) {
                 VOICE_GOOGLE -> VOICE_GOOGLE
+                VOICE_LOCAL -> VOICE_LOCAL
                 VOICE_HUOSHAN -> VOICE_HUOSHAN
                 // Never chosen. A build packaged with a Google key is a build
                 // packaged *for* Google, so that is what it reads as; a build
                 // without one reads as 火山, which is what every build did
                 // before this setting existed. Either way the picker is one tap
                 // away, and a user's own choice always outranks this.
-                "" -> if (googleApiKeyDefault().isNotEmpty()) VOICE_GOOGLE else VOICE_HUOSHAN
+                "" -> VOICE_LOCAL
                 else -> VOICE_HUOSHAN
             }
         }
@@ -551,7 +562,7 @@ object VoiceConfig {
                 VOICE_GOOGLE -> VOICE_GOOGLE
                 VOICE_SYSTEM -> VOICE_SYSTEM
                 VOICE_HUOSHAN -> VOICE_HUOSHAN
-                "" -> voiceProvider(context)
+                "" -> VOICE_SYSTEM
                 else -> VOICE_HUOSHAN
             }
         }
@@ -716,6 +727,7 @@ object VoiceConfig {
                 "llm_api_key" to p.getString("llm_api_key", "").orEmpty(),
                 "llm_base_url" to p.getString("llm_base_url", "").orEmpty(),
                 "llm_model" to p.getString("llm_model", "").orEmpty(),
+                "llm_provider" to p.getString("llm_provider", BrainConfig.PROVIDER_CUSTOM).orEmpty(),
                 // Round-tripped as the wire words rather than a boolean: this map
                 // feeds SettingsUi's pickers and the picker's value is what comes
                 // back to [save], which only speaks String.
@@ -1067,7 +1079,7 @@ object VoiceConfig {
             "brain",
             "show_hub",
             "llm_api_key", "llm_base_url", "llm_model",
-            "llm_thinking", "llm_reasoning_effort",
+            "llm_thinking", "llm_reasoning_effort", "llm_provider",
             "grounding",
             "notify",
             "nudge",

@@ -679,6 +679,15 @@ class SettingsUi(
 
         // ---- 本机 tab: LLM + 火山 voice rows ----
         val localBlock = block(panel)
+        rowLabel(localBlock, "AI provider")
+        segmented(
+            localBlock,
+            "llm_provider",
+            listOf(
+                "custom" to "Custom / OpenAI-compatible",
+                "nvidia" to "NVIDIA hosted",
+            ),
+        )
         // The hint *is* the value a blank row resolves to, so the hint and the
         // resolved config come from the same language-aware pair — see
         // [VoiceConfig.llmModelDefault]. An English card advertises an OpenAI
@@ -688,7 +697,7 @@ class SettingsUi(
             localBlock,
             "llm_api_key",
             lctx.getString(R.string.settings_llm_api_key),
-            hint = "sk-…",
+            hint = if (VoiceConfig.current(context)["llm_provider"] == "nvidia") "nvapi-…" else "sk-…",
             secret = true,
         )
         // Directly under the row that asks for it: whoever has no key is
@@ -703,13 +712,13 @@ class SettingsUi(
             localBlock,
             "llm_model",
             lctx.getString(R.string.settings_llm_model),
-            hint = VoiceConfig.llmModelDefault(context),
+            hint = if (VoiceConfig.current(context)["llm_provider"] == "nvidia") VoiceConfig.NVIDIA_LLM_MODEL else VoiceConfig.llmModelDefault(context),
         )
         field(
             localBlock,
             "llm_base_url",
             lctx.getString(R.string.settings_llm_base_url),
-            hint = VoiceConfig.llmBaseUrlDefault(context),
+            hint = if (VoiceConfig.current(context)["llm_provider"] == "nvidia") VoiceConfig.NVIDIA_LLM_BASE_URL else VoiceConfig.llmBaseUrlDefault(context),
         )
 
         rowLabel(localBlock, lctx.getString(R.string.settings_llm_thinking))
@@ -761,6 +770,7 @@ class SettingsUi(
                 // [VoiceConfig.voiceProvider].
                 VoiceConfig.VOICE_HUOSHAN to lctx.getString(R.string.settings_voice_provider_huoshan),
                 VoiceConfig.VOICE_GOOGLE to lctx.getString(R.string.settings_voice_provider_google),
+                VoiceConfig.VOICE_LOCAL to "On-device (free/offline)",
             ),
         ) { applyProvider?.invoke(it, true) }
 
@@ -780,6 +790,8 @@ class SettingsUi(
             applyProvider?.invoke(provider, true)
         }
         speakPicked = speak
+
+        note(voiceBlock, "On-device mode uses Android's offline speech service. Audio is not sent to an ASR API; offline language-pack availability depends on your phone.")
 
         // 火山: previously in 高级 → 火山. Rows copy that section's labels,
         // which still describe exactly these keys.
