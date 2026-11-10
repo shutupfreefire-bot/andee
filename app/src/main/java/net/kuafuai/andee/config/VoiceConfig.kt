@@ -29,6 +29,10 @@ object VoiceConfig {
          */
         const val API_KEY = ""
 
+        /** NVIDIA API Catalog hosted OpenAI-compatible chat endpoint. */
+        const val NVIDIA_LLM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+        const val NVIDIA_LLM_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+
         /**
          * The 火山 speaker the device speaks with when the ball's look has no
          * opinion of its own.
@@ -395,8 +399,11 @@ object VoiceConfig {
             // Language-dependent defaults: the blank-row fallback must be the
             // value the 本机 tab's hint advertised, or an English card would
             // promise OpenAI in the placeholder and then call DeepSeek.
-            val defaultBaseUrl = llmBaseUrlDefault(context)
-            val defaultModel = llmModelDefault(context)
+            val provider = p.getString("llm_provider", BrainConfig.PROVIDER_CUSTOM).orEmpty()
+                .trim().lowercase().ifEmpty { BrainConfig.PROVIDER_CUSTOM }
+            val isNvidia = provider == BrainConfig.PROVIDER_NVIDIA
+            val defaultBaseUrl = if (isNvidia) NVIDIA_LLM_BASE_URL else llmBaseUrlDefault(context)
+            val defaultModel = if (isNvidia) NVIDIA_LLM_MODEL else llmModelDefault(context)
             return BrainConfig(
                 mode = mode,
                 apiKey = p.getString("llm_api_key", "").orEmpty().trim(),
@@ -411,8 +418,7 @@ object VoiceConfig {
                     ?.trim()?.lowercase() != "disabled",
                 reasoningEffort = p.getString("llm_reasoning_effort", DEFAULT_REASONING_EFFORT)
                     .orEmpty().trim().ifEmpty { DEFAULT_REASONING_EFFORT },
-                provider = p.getString("llm_provider", BrainConfig.PROVIDER_CUSTOM).orEmpty()
-                    .trim().lowercase().ifEmpty { BrainConfig.PROVIDER_CUSTOM },
+                provider = provider,
             )
         }
 
