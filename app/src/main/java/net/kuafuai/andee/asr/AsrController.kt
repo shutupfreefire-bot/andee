@@ -1,9 +1,14 @@
 package net.kuafuai.andee.asr
 
 import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.util.Log
 import net.kuafuai.andee.audio.AudioFocusGate
 import net.kuafuai.andee.audio.AudioIO
@@ -50,6 +55,12 @@ class AsrController(
 ) {
     @Volatile
     private var asr: AsrEngine? = null
+
+    @Volatile
+    private var localRecognizer: SpeechRecognizer? = null
+
+    @Volatile
+    private var localAsrActive = false
     private val executor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "AsrController").apply { isDaemon = true }
     }
@@ -114,13 +125,13 @@ class AsrController(
     @Volatile
     private var turnSilenceMs = 3000L
 
-    fun isActive(): Boolean = audio.isStreaming()
+    fun isActive(): Boolean = audio.isStreaming() || localAsrActive
 
     /** Called from the UI thread when the user taps the ball. */
     fun toggle(userInitiated: Boolean = true) {
         executor.execute {
             try {
-                if (audio.isStreaming()) stopImpl() else startImpl(userInitiated)
+                if (isActive()) stopImpl() else startImpl(userInitiated)
             } catch (t: Throwable) {
                 Log.e(TAG, "toggle failed", t)
                 runCatching { stopImpl() }
@@ -211,6 +222,12 @@ class AsrController(
             }
 
             override fun onClosed() {}
+        }
+
+        // Android's offline recognizer owns the microphone; do not stream PCM.
+        if (cfg.voiceProvider == VoiceConfig.VOICE_LOCAL) {
+            startLocalRecognition(userInitiated)
+            return
         }
 
         // Which service hears. The pick is a string and the failure direction
@@ -313,6 +330,112 @@ class AsrController(
         silence.postDelayed(silenceWatchdog, SILENCE_CHECK_MS)
     }
 
+    /** Main-thread handler for Android's on-device recognizer lifecycle. */
+    private val main = Handler(Looper.getMainLooper())
+
+    /**
+     * Android's on-device SpeechRecognizer owns microphone capture. We only
+     * create the on-device implementation (never the network-capable default),
+     * and fail visibly if this handset has no offline recognition service.
+     */
+    private fun startLocalRecognition(userInitiated: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT < 31) {
+            window.setState(FloatingWindowUi.State.ERROR)
+            onError("On-device speech recognition requires Android 12 or later.")
+            focus.release()
+            return
+        }
+        if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+            window.setState(FloatingWindowUi.State.ERROR)
+            onError("Offline speech recognition is unavailable. Install an on-device speech language pack or choose a cloud recognizer.")
+            focus.release()
+            return
+        }
+        engineReady = false
+        localAsrActive = true
+        heardAnything = false
+        lastPartial = ""
+        window.setState(FloatingWindowUi.State.RECORDING)
+        window.setSubtitle(
+            AppLocale.str(context, net.kuafuai.andee.R.string.asr_listening),
+            FloatingWindowUi.SubtitleKind.PARTIAL,
+        )
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        main.post {
+            if (!localAsrActive) return@post
+            try {
+                val recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                localRecognizer = recognizer
+                recognizer.setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        engineReady = true
+                        lastSpeechAt = SystemClock.uptimeMillis()
+                    }
+                    override fun onBeginningOfSpeech() {
+                        heardAnything = true
+                        lastSpeechAt = SystemClock.uptimeMillis()
+                    }
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
+                    override fun onError(error: Int) {
+                        if (!localAsrActive) return
+                        val msg = when (error) {
+                            SpeechRecognizer.ERROR_NO_MATCH -> "No speech was recognised. Try again."
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected. Try again."
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required."
+                            else -> "Offline speech recognition failed (code $error)."
+                        }
+                        window.clearSubtitle()
+                        executor.execute {
+                            runCatching { stopImpl() }
+                            window.setState(FloatingWindowUi.State.ERROR)
+                            this@AsrController.onError(msg)
+                        }
+                    }
+                    override fun onResults(results: Bundle?) {
+                        if (!localAsrActive) return
+                        val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull().orEmpty().trim()
+                        window.clearSubtitle()
+                        executor.execute {
+                            runCatching { stopImpl() }
+                            if (text.isNotBlank()) onTranscript(text, userInitiated)
+                        }
+                    }
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        if (!localAsrActive) return
+                        val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull().orEmpty().trim()
+                        if (text.isNotBlank()) {
+                            heardAnything = true
+                            if (text != lastPartial) {
+                                lastPartial = text
+                                lastSpeechAt = SystemClock.uptimeMillis()
+                            }
+                            window.setSubtitle(text, FloatingWindowUi.SubtitleKind.PARTIAL)
+                        }
+                    }
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+                recognizer.startListening(intent)
+                armSilenceWatchdog()
+            } catch (t: Throwable) {
+                localAsrActive = false
+                localRecognizer = null
+                window.clearSubtitle()
+                window.setState(FloatingWindowUi.State.ERROR)
+                focus.release()
+                onError(t.message ?: "Could not start on-device speech recognition.")
+            }
+        }
+    }
+
     /**
      * Main thread only. Nothing new out of the recogniser for the engine's own
      * [AsrEngine.silenceMs] and we close the mic ourselves — [stop] says the
@@ -342,8 +465,13 @@ class AsrController(
      *    slow would be cut off before it ever spoke.
      */
     private fun checkSilence() {
-        if (!audio.isStreaming()) return  // finished already
+        if (!audio.isStreaming() && !localAsrActive) return  // finished already
         val now = SystemClock.uptimeMillis()
+        if (localAsrActive) {
+            if (now - turnStartedAt >= MAX_TURN_MS) stop()
+            else silence.postDelayed(silenceWatchdog, SILENCE_CHECK_MS)
+            return
+        }
         if (now - turnStartedAt >= MAX_TURN_MS) {
             Log.i(TAG, "turn hit ${MAX_TURN_MS}ms ceiling — auto-stop")
             runCatching { stop() }
@@ -374,6 +502,14 @@ class AsrController(
     private fun stopImpl(bySilence: Boolean = false) {
         silence.removeCallbacks(silenceWatchdog)
         val client = asr
+        if (localAsrActive) {
+            localAsrActive = false
+            val recognizer = localRecognizer
+            localRecognizer = null
+            if (recognizer != null) {
+                main.post { runCatching { recognizer.cancel() }; runCatching { recognizer.destroy() } }
+            }
+        }
         if (audio.isStreaming()) {
             audio.stopStreaming()
             runCatching { client?.endOfTurn(bySilence) }
