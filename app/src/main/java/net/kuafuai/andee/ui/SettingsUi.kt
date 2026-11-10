@@ -697,7 +697,7 @@ class SettingsUi(
             localBlock,
             "llm_api_key",
             lctx.getString(R.string.settings_llm_api_key),
-            hint = "sk-…",
+            hint = if (VoiceConfig.current(context)["llm_provider"] == "nvidia") "nvapi-…" else "sk-…",
             secret = true,
         )
         // Directly under the row that asks for it: whoever has no key is
@@ -712,13 +712,13 @@ class SettingsUi(
             localBlock,
             "llm_model",
             lctx.getString(R.string.settings_llm_model),
-            hint = VoiceConfig.llmModelDefault(context),
+            hint = if (VoiceConfig.current(context)["llm_provider"] == "nvidia") VoiceConfig.NVIDIA_LLM_MODEL else VoiceConfig.llmModelDefault(context),
         )
         field(
             localBlock,
             "llm_base_url",
             lctx.getString(R.string.settings_llm_base_url),
-            hint = VoiceConfig.llmBaseUrlDefault(context),
+            hint = if (VoiceConfig.current(context)["llm_provider"] == "nvidia") VoiceConfig.NVIDIA_LLM_BASE_URL else VoiceConfig.llmBaseUrlDefault(context),
         )
 
         rowLabel(localBlock, lctx.getString(R.string.settings_llm_thinking))
