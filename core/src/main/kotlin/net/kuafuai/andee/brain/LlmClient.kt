@@ -67,6 +67,7 @@ class LlmClient(
     model: String,
     thinking: Boolean,
     reasoningEffort: String,
+    private val provider: String = "custom",
 ) {
 
     // Request parameters, read once per [complete]. Volatile because [retune]
@@ -163,7 +164,13 @@ class LlmClient(
         if (tools.length() > 0) {
             body.put("tools", tools).put("tool_choice", "auto")
         }
-        if (thinking && !noThinking) {
+        if (provider == "nvidia") {
+            // NVIDIA's hosted NIM chat API is OpenAI-compatible. Do not send
+            // DeepSeek-specific `thinking` fields; selected NVIDIA models may
+            // accept the standard reasoning_effort field.
+            body.put("max_tokens", 4096)
+            if (thinking && !noThinking) body.put("reasoning_effort", reasoningEffort)
+        } else if (thinking && !noThinking) {
             body.put("thinking", JSONObject().put("type", "enabled"))
             body.put("reasoning_effort", reasoningEffort)
         } else {
