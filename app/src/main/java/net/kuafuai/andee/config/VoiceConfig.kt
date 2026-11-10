@@ -83,6 +83,8 @@ object VoiceConfig {
          * appears on the listening side.
          */
         const val VOICE_SYSTEM = "system"
+        /** Android on-device ASR; microphone audio stays on the device. */
+        const val VOICE_LOCAL = VoiceSettings.VOICE_LOCAL
 
         /**
          * The Vertex endpoint, its Express-keyed surface.
@@ -528,6 +530,7 @@ object VoiceConfig {
                 .getString("voice_provider", "").orEmpty().trim().lowercase()
             return when (saved) {
                 VOICE_GOOGLE -> VOICE_GOOGLE
+                VOICE_LOCAL -> VOICE_LOCAL
                 VOICE_HUOSHAN -> VOICE_HUOSHAN
                 // Never chosen. A build packaged with a Google key is a build
                 // packaged *for* Google, so that is what it reads as; a build
