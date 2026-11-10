@@ -770,6 +770,7 @@ class SettingsUi(
                 // [VoiceConfig.voiceProvider].
                 VoiceConfig.VOICE_HUOSHAN to lctx.getString(R.string.settings_voice_provider_huoshan),
                 VoiceConfig.VOICE_GOOGLE to lctx.getString(R.string.settings_voice_provider_google),
+                VoiceConfig.VOICE_LOCAL to "On-device (free/offline)",
             ),
         ) { applyProvider?.invoke(it, true) }
 
@@ -789,6 +790,8 @@ class SettingsUi(
             applyProvider?.invoke(provider, true)
         }
         speakPicked = speak
+
+        note(voiceBlock, "On-device mode uses Android's offline speech service. Audio is not sent to an ASR API; offline language-pack availability depends on your phone.")
 
         // 火山: previously in 高级 → 火山. Rows copy that section's labels,
         // which still describe exactly these keys.
