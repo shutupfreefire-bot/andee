@@ -165,11 +165,13 @@ class LlmClient(
             body.put("tools", tools).put("tool_choice", "auto")
         }
         if (provider == "nvidia") {
-            // NVIDIA's hosted NIM chat API is OpenAI-compatible. Do not send
-            // DeepSeek-specific `thinking` fields; selected NVIDIA models may
-            // accept the standard reasoning_effort field.
+            // Nemotron 3.5 Lightning exposes its thinking switch through the
+            // model's chat-template kwargs, not DeepSeek's `thinking` object.
+            // Keep the payload on the model's documented NVIDIA shape.
+            val enableThinking = thinking && !noThinking
             body.put("max_tokens", 4096)
-            if (thinking && !noThinking) body.put("reasoning_effort", reasoningEffort)
+            body.put("chat_template_kwargs", JSONObject().put("enable_thinking", enableThinking))
+            if (enableThinking) body.put("reasoning_budget", 4096)
         } else if (thinking && !noThinking) {
             body.put("thinking", JSONObject().put("type", "enabled"))
             body.put("reasoning_effort", reasoningEffort)
