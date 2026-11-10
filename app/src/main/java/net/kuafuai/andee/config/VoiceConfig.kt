@@ -562,7 +562,7 @@ object VoiceConfig {
                 VOICE_GOOGLE -> VOICE_GOOGLE
                 VOICE_SYSTEM -> VOICE_SYSTEM
                 VOICE_HUOSHAN -> VOICE_HUOSHAN
-                "" -> voiceProvider(context)
+                "" -> VOICE_SYSTEM
                 else -> VOICE_HUOSHAN
             }
         }
