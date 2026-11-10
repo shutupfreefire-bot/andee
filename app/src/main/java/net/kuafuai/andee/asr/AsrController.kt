@@ -345,12 +345,6 @@ class AsrController(
             focus.release()
             return
         }
-        if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
-            window.setState(FloatingWindowUi.State.ERROR)
-            onError("Offline speech recognition is unavailable. Install an on-device speech language pack or choose a cloud recognizer.")
-            focus.release()
-            return
-        }
         engineReady = false
         localAsrActive = true
         heardAnything = false
@@ -368,6 +362,14 @@ class AsrController(
         }
         main.post {
             if (!localAsrActive) return@post
+            if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+                localAsrActive = false
+                window.clearSubtitle()
+                window.setState(FloatingWindowUi.State.ERROR)
+                focus.release()
+                onError("Offline speech recognition is unavailable. Install an on-device speech language pack or choose a cloud recognizer.")
+                return@post
+            }
             try {
                 val recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
                 localRecognizer = recognizer
